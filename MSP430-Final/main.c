@@ -23,12 +23,12 @@ void main(void)
     while(1)
     {
         __delay_cycles(1000);                   // Waits For 1000 Master Clock Cycles
-        new_data = 1;                           // Load TX byte counter
+        data.new_data = 1;                      // New Data Available
         while (UCB0CTLW0 & UCTXSTP);            // Ack of Stop Clears UCTXSTP, Must Be Checked Before Initialising New Transmission
         UCB0CTLW0 |= UCTR + UCTXSTT; 			// UCTR - Transmit Select; UCTXSTT - Generates Start
         __bis_SR_register(CPUOFF + GIE);        // Enter LPM0 w/ Interrupts
         
-        free(data);								// updateData Mallocs Dynamic Memory, Freeing Prevents Leaks
+        free(data.digit_array);					// updateData Mallocs Dynamic Memory, Freeing Prevents Leaks
         updateData();                           // LPM Ends When All Data Has Been Transmitted, So We Aquire Another Reading To Transmit
     }
 }
@@ -44,10 +44,10 @@ __interrupt void USCIB0_ISR(void)
         case 0x04:									// NACK
             UCB0CTLW0 |= UCTXSTT;					// Resend Start Condition
             break;
-        case 0x18:                                                  // Transmit Buffer Empty
-            (new_data) ? UCB0TXBUF = multiByte() :	clearStop();    // Check For New Byte
-            break;                                                  // UCB0TXBUF - 8-Bit (1-Byte) Buffer For Writing;
-        default: break;                                             // 2nd Instance - No New Data, Buffer Empty, Clear Screen
+        case 0x18:                                                      // Transmit Buffer Empty
+            (data.new_data) ? UCB0TXBUF = multiByte() :	clearStop();    // Check For New Byte
+            break;                                                      // UCB0TXBUF - 8-Bit (1-Byte) Buffer For Writing;
+        default: break;                                                 // 2nd Instance - No New Data, Buffer Empty, Clear Screen
     }
 }
 
