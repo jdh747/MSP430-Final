@@ -12,13 +12,13 @@
 #include "thermister.h"
 #include "I2C.h"
 
-volatile unsigned int *FRAMPtr = 0;
 
 void main(void)
 {
     setupClocks();
     configureI2CPins();
     updateData();
+    EnableI2C();
     
     // Program Loop
     while(1)
@@ -30,7 +30,9 @@ void main(void)
         __bis_SR_register(CPUOFF + GIE);        // Enter LPM0 w/ Interrupts
         
         free(data.digit_array);					// updateData Mallocs Dynamic Memory, Freeing Prevents Leaks
+        DisableI2C();                           // Disables I2C Interrupts While Using ADC Interrupts To Collect Data
         updateData();                           // LPM Ends When All Data Has Been Transmitted, So We Aquire Another Reading To Transmit
+        EnableI2C();                            // ReEnables I2C Interrupts After Data Is Collected From ADC. ADC Interrupts Initiate/Shut Down Every Update Cycle
     }
 }
 
@@ -53,34 +55,20 @@ __interrupt void USCIB0_ISR(void)
 }
 
 
-
-/**********************************CHANGES!!!************************************//**
-* @brief  ADC10 ISR for MODE3 and MODE4
-*
-* @param  none
-*
-* @return none
-*************************************************************************/
-#pragma vector=ADC10_VECTOR
+#pragma vector = ADC10_VECTOR
 __interrupt void ADC10_ISR(void)
 {
     switch(__even_in_range(ADC10IV,ADC10IV_ADC10IFG))
     {
-        case ADC10IV_NONE: break;               // No interrupt
-        case ADC10IV_ADC10OVIFG: break;         // conversion result overflow
-        case ADC10IV_ADC10TOVIFG: break;        // conversion time overflow
+        case ADC10IV_NONE: break;               // No Interrupt
+        case ADC10IV_ADC10OVIFG: break;         // Conversion Result Overflow
+        case ADC10IV_ADC10TOVIFG: break;        // Conversion Time Overflow
         case ADC10IV_ADC10HIIFG: break;         // ADC10HI
         case ADC10IV_ADC10LOIFG: break;         // ADC10LO
         case ADC10IV_ADC10INIFG: break;         // ADC10IN
-        case ADC10IV_ADC10IFG:
-            ADCResult = ADC10MEM0;
-            *FRAMPtr = ADCResult;
-            FRAMPtr++;
-            // Pointer round off, once 0x200 locations are written, the pointer
-            // rolls over
-            if (FRAMPtr > (unsigned int *)ADC_END_ADD)
-                FRAMPtr = (unsigned int *) ADC_START_ADD;
-            __bic_SR_register_on_exit(CPUOFF);  // Clear CPUOFF bit from 0(SR)
+        case ADC10IV_ADC10IFG:                  // ADC10_B Memory Interrupt
+            ADCResult = ADC10MEM0;              // ADC Digital Result Stored In ADC10MEM0 Conversion Register
+            __bic_SR_register_on_exit(CPUOFF);  // Clear CPUOFF Bit From SR
             break;
         default: break;
     }  

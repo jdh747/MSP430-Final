@@ -13,101 +13,94 @@ unsigned int thermisterReading()
 {
     // Declarations
     unsigned int ADCTemp = 0;
-    unsigned char temp = 0;
     unsigned int CalValue = 0;
     
-    SetupThermistor();                  // One time setup and calibration
-    CalValue = CalibrateADC();
-    TakeADCMeas();                      // Take 1 ADC Sample
-    if (ADCResult >= CalValue)
-    {
-        temp = DOWN;
-        ADCTemp = ADCResult - CalValue;
-    }
-    else
-    {
-        temp = UP;
-        ADCTemp = CalValue - ADCResult;
-    }
+    SetupThermistor();                  // Setup Thermistor Ports & Registers
+    CalValue = CalibrateADC();          // Calibration Reading
+    TakeADCMeas();                      // Take ADC Sample
+    ADCTemp = (ADCResult >= CalValue) ? (ADCResult - CalValue) : (CalValue - ADCResult);
     ShutDownTherm();                    // turn off Thermistor bridge for low power
     return ADCTemp;
 }
 
+
 void SetupThermistor()
 {
-    // Declarations
-    volatile unsigned char ThreshRange[3]={0,0,0};
-    
     // ~16KHz sampling
-    //Turn on Power
+    // Used For Vcc??
     P2DIR |= BIT7;
     P2OUT |= BIT7;
     
-    // Configure ADC
+    // Set P1.4 As Analog Input -> ADC
     P1SEL1 |= BIT4;
     P1SEL0 |= BIT4;
     
     // Allow for settling delay
     __delay_cycles(50000);
     
-    // Configure ADC
-    ADC10CTL0 &= ~ADC10ENC;
-    ADC10CTL0 = ADC10SHT_7 + ADC10ON;        // ADC10ON, S&H=192 ADC clks
-    // ADCCLK = MODOSC = 5MHz
-    ADC10CTL1 = ADC10SHS_0 + ADC10SHP + ADC10SSEL_0;
-    ADC10CTL2 = ADC10RES;                    // 10-bit conversion results
-    ADC10MCTL0 = ADC10INCH_4;                // A4 ADC input select; Vref=AVCC
-    ADC10IE = ADC10IE0;                      // Enable ADC conv complete interrupt
-    
-    // Setup Thresholds for relative difference in Thermistor measurements
-    ThreshRange[0]=15;
-    ThreshRange[1]=25;
-    ThreshRange[2]=45;
+    // Configure ADC10 Control Registers
+    ADC10CTL0 &= ~ADC10ENC;                             // Disable Conversion, ReEnable When Wanting To Take Reading
+    ADC10CTL0 = ADC10SHT_7 + ADC10ON;                   // ADC10SHT_7: Sampling Timer Interval = 192xADC10CLK Cycles (192x5MHz) | ADC10ON: Enables ADC Core
+    ADC10CTL1 = ADC10SHS_0 + ADC10SHP + ADC10SSEL_0;    // ADC10SHS_0: S&H Samples On ADC10SC Rising Edge | ADC10SHP: S&H Pulse Mode | ADC10SSEL_0: ADC10 Clock Source - MODCLK (5MHz Clock)
+    ADC10CTL2 = ADC10RES;                    // 10-bit Conversion Resolution (12 Clock Cycle)
+    ADC10MCTL0 = ADC10INCH_4;                // ADC10MCTL0: Conversion Memory Control Register | ADC10INCH_4: A4 Input Channel (P1.4) | Vref=AVCC (By Default)
+    ADC10IE = ADC10IE0;                      // ADC10IE: ADC10B Interrupt Register | ADC10IE0: Enable Completed Conversion Interrupt
 }
+
 
 unsigned int CalibrateADC()
 {
-    unsigned char CalibCounter =0;
+    unsigned char CalibCounter = 0;
     unsigned int Value = 0;
     
-    // Disable interrupts & user input during calibration
-    DisableSwitches();
-    while(CalibCounter <50)
+    while(CalibCounter < 50)
     {
-        P3OUT ^= BIT4;
+        P3OUT ^= BIT4;                          // Switches P3.4 On/Off On Each Loop, Why?
         CalibCounter++;
-        while (ADC10CTL1 & BUSY);
-        ADC10CTL0 |= ADC10ENC | ADC10SC ;       // Start conversion
-        __bis_SR_register(CPUOFF + GIE);        // LPM0, ADC10_ISR will force exit
-        __no_operation();
+        while (ADC10CTL1 & BUSY);               // Busy Bit (Bit0) - Active Sample or Conversion
+        ADC10CTL0 |= ADC10ENC | ADC10SC ;       // ADC10ENC: Enable Conversion | ADC10SC: Start Conversion
+        __bis_SR_register(CPUOFF + GIE);        // LPM0, ADC10_ISR Forces Exit
+        
+        __no_operation();                       // Single Cycle Delay
         Value += ADCResult;
     }
-    Value = Value/50;
-    // Reenable switches after calibration
-    EnableSwitches();
+    Value = Value/50;                           // Averages ADCResult Between P3.4 Low/High State
     return Value;
 }
 
+
 void TakeADCMeas()
 {
-    while (ADC10CTL1 & BUSY);
-    ADC10CTL0 |= ADC10ENC | ADC10SC ;       // Start conversion
-    __bis_SR_register(CPUOFF + GIE);        // LPM0, ADC10_ISR will force exit
-    __no_operation();                       // For debug only
+    while (ADC10CTL1 & BUSY);               // Waits For Active Conversions To Finish
+    ADC10CTL0 |= ADC10ENC | ADC10SC ;       // Enable & Start Conversion
+    __bis_SR_register(CPUOFF + GIE);        // LPM0, ADC10_ISR Forces Exit
+    
+    __no_operation();                       // Single Cycle Delay, For Debug
 }
+
 
 void ShutDownTherm()
 {
-    // Turn off Vcc
+    // Turn Off Vcc
     P2DIR &= ~BIT7;
     P2OUT &= ~BIT7;
     
-    // Turn off ADC Channel
+    // Turn Off ADC Input Channel
     P1SEL1 &= ~BIT4;
     P1SEL0 &= ~BIT4;
     
-    // Turn off ADC
-    ADC10CTL0 &= ~(ADC10ENC + ADC10ON);
-    ADC10IE &= ~ADC10IE0;
-    ADC10IFG = 0;
+    // Turn Off ADC
+    ADC10CTL0 &= ~(ADC10ENC + ADC10ON);     // Disable Conversion & Turn Off ADC Core
+    ADC10IE &= ~ADC10IE0;                   // Disable Conversion Interrupt
+    ADC10IFG = 0;                           // Clear ADC Interrupt Flag Register
 }
+
+
+
+
+
+
+
+
+
+
