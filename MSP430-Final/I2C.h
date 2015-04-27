@@ -31,5 +31,7 @@ unsigned char multiByte();
 void clearStop();
 unsigned char getDigits(unsigned int);
 void negativeDetect(int*);
+void DisableI2C(void);
+void EnableI2C(void);
 
 #endif /* defined(__MSP430_Final__I2C__) */
