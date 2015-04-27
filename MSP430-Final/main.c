@@ -12,6 +12,7 @@
 #include "thermister.h"
 #include "I2C.h"
 
+volatile unsigned int *FRAMPtr = 0;
 
 void main(void)
 {
@@ -50,4 +51,42 @@ __interrupt void USCIB0_ISR(void)
         default: break;                                                 // 2nd Instance - No New Data, Buffer Empty, Clear Screen
     }
 }
+
+
+
+/**********************************CHANGES!!!************************************//**
+* @brief  ADC10 ISR for MODE3 and MODE4
+*
+* @param  none
+*
+* @return none
+*************************************************************************/
+#pragma vector=ADC10_VECTOR
+__interrupt void ADC10_ISR(void)
+{
+    switch(__even_in_range(ADC10IV,ADC10IV_ADC10IFG))
+    {
+        case ADC10IV_NONE: break;               // No interrupt
+        case ADC10IV_ADC10OVIFG: break;         // conversion result overflow
+        case ADC10IV_ADC10TOVIFG: break;        // conversion time overflow
+        case ADC10IV_ADC10HIIFG: break;         // ADC10HI
+        case ADC10IV_ADC10LOIFG: break;         // ADC10LO
+        case ADC10IV_ADC10INIFG: break;         // ADC10IN
+        case ADC10IV_ADC10IFG:
+            ADCResult = ADC10MEM0;
+            *FRAMPtr = ADCResult;
+            FRAMPtr++;
+            // Pointer round off, once 0x200 locations are written, the pointer
+            // rolls over
+            if (FRAMPtr > (unsigned int *)ADC_END_ADD)
+                FRAMPtr = (unsigned int *) ADC_START_ADD;
+            __bic_SR_register_on_exit(CPUOFF);  // Clear CPUOFF bit from 0(SR)
+            break;
+        default: break;
+    }  
+}
+
+
+
+
 
