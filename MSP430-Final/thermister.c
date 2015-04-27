@@ -27,15 +27,20 @@ unsigned int thermisterReading()
 void SetupThermistor()
 {
     // ~16KHz sampling
-    // Used For Vcc??
+    
+    // Used For Vcc, To Power Voltage Divider??
     P2DIR |= BIT7;
     P2OUT |= BIT7;
+    
+    // P1.4 Is Used As Input From NTC Voltage Divider
+    P1OUT &= ~BIT4;
+    P1DIR |= BIT4;
     
     // Set P1.4 As Analog Input -> ADC
     P1SEL1 |= BIT4;
     P1SEL0 |= BIT4;
     
-    // Allow for settling delay
+    // Allow For Settling Delay
     __delay_cycles(50000);
     
     // Configure ADC10 Control Registers

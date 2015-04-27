@@ -17,6 +17,7 @@ void setupClocks()
     CSCTL1 |= DCOFSEL0 + DCOFSEL1;          // Set DCO = 8MHz -- Bit 0 + 1 = 11b = 8MHz
     CSCTL2 = SELA_3 + SELS_3 + SELM_3;      // Set Clocks Source: SELA/S/M_3 - ACLK(Aux Clock)/SMCLK(SubSys Clock)/MCLK(Master Clock) = DCO
     CSCTL3 = DIVA_3 + DIVS_3 + DIVM_3;      // Divide All 3 Clocks By 8 ie 1MHz
+    CSCTL0_H = 0x01;                        // Lock Clock Register, Any Write Other Than 0xA5 Will Do
 }
 
 
@@ -126,7 +127,7 @@ void negativeDetect(int *num)
         data.negative = 0;
 }
 
-//***Check These***//
+
 void DisableI2C()
 {
     UCB0IE &= ~(UCTXIE0 + UCNACKIE);  // Disable eUSCI Interrupts
