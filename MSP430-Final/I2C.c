@@ -84,12 +84,12 @@ unsigned char multiByte()
 void clearStop()            // ***Never Enters Clear Commands After Initial Run*** //
 {
     static unsigned char clearstate = 1;
-    unsigned char clearcmds[3] = {0x00, 0x00, 0x00};        // ***Insert LCD Clear Commands: Clear, Cursor, Pos
+    unsigned char clearcmds[3] = {LCD_COMMAND, LCD_HITACHI, LCD_HOME};
     
     if (clearstate)                                         // If We're Still Incrementing Through The Clear Commands
     {
         UCB0TXBUF = clearcmds[clearstate-1];                // Next Clear Command To Output Buffer
-        (clearstate >= 3) ? clearstate = 0 : clearstate++;  // Checks For Commands To Come
+        (clearstate >= CLEARCMDS_CNT) ? clearstate = 0 : clearstate++;  // Checks For Commands To Come
     } else
     {
         clearstate++;                       // Resets Clearstate For Future Calls

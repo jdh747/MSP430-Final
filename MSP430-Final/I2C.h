@@ -23,6 +23,12 @@ extern struct {
     unsigned char *digit_array;
 } data;
 
+// Macros
+#define LCD_COMMAND 0x80    // Command Start
+#define LCD_HITACHI 0x05    // Hitachi Commands Pass Through
+#define LCD_HOME 0x02       // Clears Screen & Sets Pos 0
+#define CLEARCMDS_CNT 3
+
 // Local Function Declarations
 void setupClocks();
 void configureI2CPins();
